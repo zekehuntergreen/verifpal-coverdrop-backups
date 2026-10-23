@@ -9,7 +9,7 @@ Most of the business logic of the implementation of the protocol is [here](https
 
 [`backup_protocol.vp`](./backup_protocol.vp) models this backup protocol to formally verify that the vault data stays confidential.
 
-- **Backup:** Alice encrypts her vault, splits the key into 2-of-3 shares for Bob, Charlie and Duncan, wraps each share for the Admin, and signs the bundle.
+- **Backup:** Alice encrypts her vault, splits the key into 3 shares for Bob, Charlie and Duncan, any 2 of which will recover the key, wraps each share for the Admin, and signs the bundle.
 - **Restore:** the Admin verifies the signature, asks two contacts to unwrap their shares, combines the shares to recover the key and decrypts the vault.
 
 ## Diagrams
