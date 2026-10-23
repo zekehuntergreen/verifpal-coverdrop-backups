@@ -76,7 +76,8 @@ principal Alice[
 	// Encrypt the backup data with XChaCha20Poly1305
 	encrypted_vault = AEAD_ENC(backup_symmetric_key, nonce, alice_vault_data, aad)
 
-	// Split the backup secret key into n shares (any k of them will recover the key)
+	// Split the backup secret key into n shares (any k of them will recover the key).
+	// We use Shamir secret sharing.
 	s1, s2, s3 = THRESHOLD_SPLIT[2](backup_symmetric_key)
 
 	// Encrypt secret shares for their recipients
