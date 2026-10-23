@@ -9,7 +9,7 @@ The journalist vault backup protocol defines how journalist vaults are securely 
 The protocol has been implemented and deployed in production since December 2025.
 Most of the protocol's business logic is implemented [here](https://github.com/guardian/coverdrop/blob/main/common/src/protocol/backup.rs).
 
-[`backup_protocol.vp`](./backup_protocol.vp) models this backup protocol to formally verify that the vault data stays confidential.
+[`backup_protocol.vp`](./backup_protocol.vp) models this backup protocol with [Verifpal](https://verifpal.com/) to formally verify that the vault data stays confidential.
 
 - **Backup:** Alice encrypts her vault, splits the key into 3 shares (any 2 of which recover the key) for Bob, Charlie and Duncan, wraps each share for the Admin, and signs the bundle.
 - **Restore:** the Admin verifies the signature, asks two contacts to unwrap their shares, combines the shares to recover the key and decrypts the vault.
