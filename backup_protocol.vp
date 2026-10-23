@@ -4,7 +4,7 @@
 attacker[active]
 
 // An administrator of CoverDrop whose responsibility it is to assist a journalist in
-// recovering a backup of their vault if this is every necessary.
+// recovering a backup of their vault if this is ever necessary.
 principal Admin[
 	knows private admin_secret_key
 	admin_public_key = PUBKEY(admin_secret_key)
@@ -23,11 +23,11 @@ principal Alice[
 	knows private alice_vault_data
 ]
 
-// Bob, Charlie, Duncan are other registered journalists.
+// Bob, Charlie and Duncan are other registered journalists.
 // Alice has chosen them as her backup recovery contacts.
 principal Bob[
 	// Journalist messaging keys are X25519 key pairs generated every day and valid
-	// for 14 days
+	// for 14 days.
 	generates bob_journalist_msg_secret_key
 	bob_journalist_msg_public_key = PUBKEY(bob_journalist_msg_secret_key)
 ]
@@ -80,25 +80,25 @@ principal Alice[
 	generates backup_symmetric_key
 	generates nonce
 
-	// Encrypt the backup data with XChaCha20Poly1305
+	// Encrypt the backup data with XChaCha20Poly1305.
 	encrypted_vault = AEAD_ENC(backup_symmetric_key, nonce, alice_vault_data, aad)
 
 	// Split the backup secret key into n shares (any k of them will recover the key).
 	// We use Shamir secret sharing. For the purposes of the model, n=3 and k=2.
 	s1, s2, s3 = THRESHOLD_SPLIT[2](backup_symmetric_key)
 
-	// Encrypt secret shares for Alice's three backups contacts.
+	// Encrypt secret shares for Alice's three backup contacts.
 	s1_encrypted = PKE_ENC(bob_journalist_msg_public_key, s1)
 	s2_encrypted = PKE_ENC(charlie_journalist_msg_public_key, s2)
 	s3_encrypted = PKE_ENC(duncan_journalist_msg_public_key, s3)
 
-	// Each encrypted share is then re-encrypted for the admin
+	// Each encrypted share is then re-encrypted for the Admin.
 	s1_wrapped = PKE_ENC(admin_public_key, s1_encrypted)
 	s2_wrapped = PKE_ENC(admin_public_key, s2_encrypted)
 	s3_wrapped = PKE_ENC(admin_public_key, s3_encrypted)
 
-	// Alice signs the entire backup backup data object
-	// (In the implementation, she signs a cbor-encoded object)
+	// Alice signs the entire backup data object.
+	// (In the implementation, she signs a cbor-encoded object.)
 	signature = SIGN(alice_journalist_id_secret_key, CONCAT(encrypted_vault, s1_wrapped, s2_wrapped, s3_wrapped))
 ]
 
@@ -110,15 +110,15 @@ Alice -> Admin: encrypted_vault, nonce, s1_wrapped, s2_wrapped, s3_wrapped, sign
 // Restoring a Backup
 // ------------------
 
-// Alice spills tea on her computer which breaks irrecoverably 😢
-// She asks an admin to help her recover her vault backup.
+// Alice spills tea on her computer, which breaks irreparably 😢
+// She asks the Admin to help her recover her vault backup.
 
-// The admin starts the recovery process by downloading Alice's most recent backup data from S3.
+// The Admin starts the recovery process by downloading Alice's most recent backup data from S3.
 principal Admin[
-	// The Admin verifies the backup data
+	// The Admin verifies the backup data.
 	_ = SIGNVERIF(alice_journalist_id_public_key, CONCAT(encrypted_vault, s1_wrapped, s2_wrapped, s3_wrapped), signature)?
 
-	// The Admin unwraps the encrypted secret shares
+	// The Admin unwraps the encrypted secret shares.
 	encrypted_s1 = PKE_DEC(admin_secret_key, s1_wrapped)
 	encrypted_s2 = PKE_DEC(admin_secret_key, s2_wrapped)
 	encrypted_s3 = PKE_DEC(admin_secret_key, s3_wrapped)
@@ -134,14 +134,14 @@ principal Bob[
 	// to be vigilant of impersonation and to verify the Admin's identity in person, or on the phone.
 	s1_unwrapped = PKE_DEC(bob_journalist_msg_secret_key, encrypted_s1)
 
-	// The unwrapped share is then encrypted for the Admin
+	// The unwrapped share is then encrypted for the Admin.
 	s1_unwrapped_for_admin = PKE_ENC(admin_public_key, s1_unwrapped)
 ]
 
 // Bob returns the unwrapped share over the same secure channel.
 Bob -> Admin: [s1_unwrapped_for_admin]
 
-// The admin tries to contact Charlie but they are on an assignment in the Amazon with no cell service.
+// The Admin tries to contact Charlie, but they are on assignment in the Amazon with no cell service.
 
 // The Admin gets in touch with Duncan who is thankfully available.
 Admin -> Duncan: [encrypted_s3]
@@ -157,19 +157,19 @@ Duncan -> Admin: [s3_unwrapped_for_admin]
 // The Admin now has 2 of the 3 shares of the secret used to encrypt Alice's backup and can use them
 // to recover the backup!
 principal Admin[
-	// The admin decrypts the secret shares.
+	// The Admin decrypts the secret shares.
 	s1_received = PKE_DEC(admin_secret_key, s1_unwrapped_for_admin)
 	s3_received = PKE_DEC(admin_secret_key, s3_unwrapped_for_admin)
 
-	// The admin joins the shares to recover Alice's backup key.
+	// The Admin joins the shares to recover Alice's backup key.
 	alice_backup_symmetric_key = THRESHOLD_JOIN(s1_received, s3_received)
 
-	// The Admin decrypts Alice's vault
+	// The Admin decrypts Alice's vault.
 	alice_decrypted_vault = AEAD_DEC(alice_backup_symmetric_key, nonce, encrypted_vault, aad)
 ]
 
 // The Admin sends Alice her recovered vault over a channel that is authenticated and confidential
-// (e.g. in person on a USB stick) and the restore process is done 🎉
+// (e.g. in person on a USB stick), and the restore process is done 🎉
 
 queries[
 	confidentiality? alice_vault_data
