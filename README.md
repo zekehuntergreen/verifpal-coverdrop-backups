@@ -5,7 +5,7 @@
 A **journalist vault** is a database which lives on the laptop of each journalist who is a registered user of CoverDrop, which holds their conversations with sources and secret key material.
 The journalist vault backup protocol defines how journalist vaults are securely backed up to untrusted cloud storage, and restored with the help of an admin and two other journalists who are chosen as trusted recovery contacts.
 The protocol has been implemented and deployed in production since December 2025.
-Most of the business logic of the implementation of the protocol is [here](https://github.com/guardian/coverdrop/blob/main/common/src/protocol/backup.rs)
+Most of the business logic of the implementation of the protocol is [here](https://github.com/guardian/coverdrop/blob/main/common/src/protocol/backup.rs).
 
 [`backup_protocol.vp`](./backup_protocol.vp) models this backup protocol to formally verify that the vault data stays confidential.
 
@@ -17,16 +17,16 @@ The protocol is described in comments in `backup_protocol.vp` but the following 
 
 ### Creating a backup
 
-<img src="./images/backup.png" alt="Backup" width="50%">
+<img src="./images/backup.png" alt="Backup" width="100%">
 
 ### Restoring a backup
 
-<img src="./images/restore.png" alt="Restore" width="50%">
+<img src="./images/restore.png" alt="Restore" width="100%">
 
 ## Running
 
 ```sh
-verifpal verify backup_protocol.vp              # default: 2 sessions
+verifpal verify backup_protocol.vp # default: 2 sessions
 verifpal verify backup_protocol.vp --sessions 1
 ```
 
