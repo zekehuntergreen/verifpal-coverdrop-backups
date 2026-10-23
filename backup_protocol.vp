@@ -1,0 +1,164 @@
+// Principals
+// ----------
+
+attacker[active]
+
+// An administrator whose responsibility it is to assist a journalist in
+// recovering a backup if this is every necessary.
+principal Admin[
+	knows private admin_secret_key
+	admin_public_key = PUBKEY(admin_secret_key)
+]
+
+// A journalist registered in the CoverDrop system
+principal Alice[
+	// Journalist identity keys are Ed25519 signing keys.
+	knows private alice_journalist_id_secret_key
+	alice_journalist_id_public_key = PUBKEY(alice_journalist_id_secret_key)
+	// Alice's sqlcipher db to be backed up
+	knows private alice_vault_data
+]
+
+// Bob, Charlie, Duncan are other registered journalists.
+// Alice will choose them as her backup recovery contacts.
+principal Bob[
+	// Journalist messaging keys are X25519 key pairs generated every day
+	generates bob_journalist_msg_secret_key
+	bob_journalist_msg_public_key = PUBKEY(bob_journalist_msg_secret_key)
+]
+
+principal Charlie[
+	generates charlie_journalist_msg_secret_key
+	charlie_journalist_msg_public_key = PUBKEY(charlie_journalist_msg_secret_key)
+]
+
+principal Duncan[
+	generates duncan_journalist_msg_secret_key
+	duncan_journalist_msg_public_key = PUBKEY(duncan_journalist_msg_secret_key)
+]
+
+// Cloud storage (S3) for e2ee backup data is deliberately not modelled as a principal.
+// In CoverDrop's threat model cloud services are untrusted, so S3 is just part of the
+// attacker-controlled network.
+
+// Public key infrastructure
+// -------------------------
+
+// Every few minutes, all parties receive each other's public keys by pulling the
+// public key hierarchy from the API.
+// Guarding these values (with the bracket notation) represents the fact that the
+// key hierarchy is verified against a trust anchor baked into the journalist client
+// desktop app.
+Admin -> Alice: [admin_public_key]
+
+Admin -> Bob: [admin_public_key]
+
+Admin -> Duncan: [admin_public_key]
+
+Bob -> Alice: [bob_journalist_msg_public_key]
+
+Charlie -> Alice: [charlie_journalist_msg_public_key]
+
+Duncan -> Alice: [duncan_journalist_msg_public_key]
+
+Alice -> Admin: [alice_journalist_id_public_key]
+
+// Creating a Backup
+// ---------------
+
+// Every day, Alice backs up her journalist vault.
+principal Alice[
+	// Generate the symmetric key used to encrypt the vault
+	knows public aad
+	generates backup_symmetric_key
+	generates nonce
+
+	// Encrypt the backup data with XChaCha20Poly1305
+	encrypted_vault = AEAD_ENC(backup_symmetric_key, nonce, alice_vault_data, aad)
+
+	// Split the backup secret key into n shares (any k of them will recover the key)
+	s1, s2, s3 = THRESHOLD_SPLIT[2](backup_symmetric_key)
+
+	// Encrypt secret shares for their recipients
+	s1_encrypted = PKE_ENC(bob_journalist_msg_public_key, s1)
+	s2_encrypted = PKE_ENC(charlie_journalist_msg_public_key, s2)
+	s3_encrypted = PKE_ENC(duncan_journalist_msg_public_key, s3)
+
+	// Each encrypted share is then re-encrypted for the admin
+	s1_wrapped = PKE_ENC(admin_public_key, s1_encrypted)
+	s2_wrapped = PKE_ENC(admin_public_key, s2_encrypted)
+	s3_wrapped = PKE_ENC(admin_public_key, s3_encrypted)
+
+	// Alice signs the entire backup backup data object
+	// (In the implementation instead of a hash, she signs cbor-encoded object)
+	signature = SIGN(alice_journalist_id_secret_key, CONCAT(encrypted_vault, s1_wrapped, s2_wrapped, s3_wrapped))
+]
+
+// As part of the backup process, Alice posts the wrapped shares and the encrypted backup
+// data to S3. The admin starts the recovery process by downloading Alice's most recent
+// backup data from S3.
+Alice -> Admin: encrypted_vault, nonce, s1_wrapped, s2_wrapped, s3_wrapped, signature
+
+
+// Restoring a Backup
+// ------------------
+
+// Alice spills tea on her computer which breaks irrecoverably 😢
+// She asks an admin to help her recover her vault backup.
+
+principal Admin[
+	// The Admin verifies the backup data
+	_ = SIGNVERIF(alice_journalist_id_public_key, CONCAT(encrypted_vault, s1_wrapped, s2_wrapped, s3_wrapped), signature)?
+
+	// The Admin unwraps the encrypted secret shares
+	encrypted_s1 = PKE_DEC(admin_secret_key, s1_wrapped)
+	encrypted_s2 = PKE_DEC(admin_secret_key, s2_wrapped)
+	encrypted_s3 = PKE_DEC(admin_secret_key, s3_wrapped)
+]
+
+// The Admin contacts the recovery contacts to ask the to decrypt their secret share.
+// The Admin is instructed to do this over a secure channel like Signal.
+Admin -> Bob: [encrypted_s1]
+
+// Bob decrypts his share and sends it to the Admin.
+// The decryption is done in the UI of the journalist client, which instructs the journalist
+// to be vigilant of impersonation and to verify the Admin's identity in person, or on the phone.
+principal Bob[
+	s1_unwrapped = PKE_DEC(bob_journalist_msg_secret_key, encrypted_s1)
+	s1_unwrapped_for_admin = PKE_ENC(admin_public_key, s1_unwrapped)
+]
+
+// Bob returns the unwrapped share over the same secure channel. Brackets prevent tampering
+// but not eavesdropping, so the share is encrypted to the Admin to model the channel's confidentiality.
+Bob -> Admin: [s1_unwrapped_for_admin]
+
+// The admin tries to contact Charlie but they are on an assignment in the Amazon with no cell service.
+
+// The admin gets in touch with Duncan who is thankfully available.
+Admin -> Duncan: [encrypted_s3]
+principal Duncan[
+	s3_unwrapped = PKE_DEC(duncan_journalist_msg_secret_key, encrypted_s3)
+	s3_unwrapped_for_admin = PKE_ENC(admin_public_key, s3_unwrapped)
+]
+
+Duncan -> Admin: [s3_unwrapped_for_admin]
+
+// The admin now has 2 of the 3 shares of the secret used to encrypt Alice's backup and can use them
+// to recover the backup!
+principal Admin[
+	s1_received = PKE_DEC(admin_secret_key, s1_unwrapped_for_admin)
+	s3_received = PKE_DEC(admin_secret_key, s3_unwrapped_for_admin)
+	alice_backup_symmetric_key = THRESHOLD_JOIN(s1_received, s3_received)
+	alice_decrypted_vault = AEAD_DEC(alice_backup_symmetric_key, nonce, encrypted_vault, aad)
+]
+
+// The Admin sends Alice her recovered vault over a channel that is authenticated and confidential
+// (e.g. in person on a USB stick) and the restore process is done 🎉
+
+queries[
+	confidentiality? alice_vault_data
+	confidentiality? backup_symmetric_key
+	// Authentication only passes with --sessions 1
+	// An attacker could replay a valid backup data object in the wrong session.
+	authentication? Alice -> Admin: encrypted_vault
+]
