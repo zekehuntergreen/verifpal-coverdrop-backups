@@ -1,6 +1,6 @@
 # Formal verification of CoverDrop's journalist vault backup protocol using Verifpal
 
-⚠️ This is an experimental model created for an [applied cryptography course](https://appliedcryptography.page/).
+⚠️ This is an experimental model created for an [applied cryptography course](https://appliedcryptography.page/). It is unreviewed, doesn't necessarily reflect the behaviour of the actual protocol, and doesn't provide any additional security guarantees. ⚠️
 
 [CoverDrop](https://www.coverdrop.org/) is a secure, anonymous system that lets sources make first contact with journalists through a news app, developed by the University of Cambridge and The Guardian.
 
